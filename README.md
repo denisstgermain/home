@@ -6,7 +6,7 @@ Dépôt centralisé de documentation pour toute la configuration de la maison : 
 
 | Dossier | Description | Statut |
 |---------|-------------|--------|
-| `certificats/` | Certificats SSL et TLS | ✅ En cours |
+| `certificats/` | Certificats SSL et TLS | ✅ Documenté |
 | `nas/` | Configuration du NAS Synology | ✅ Documenté |
 | `reseau/` | Réseau, routeur, switch, Wi-Fi | 🔜 À venir |
 | `domotique/` | Home Assistant, objets connectés | 🔜 À venir |
@@ -24,3 +24,7 @@ Dépôt centralisé de documentation pour toute la configuration de la maison : 
   - [Services](nas/nas01/services.md) — SMB, FTP, SSH, Plex, Git, etc.
   - [Sécurité](nas/nas01/securite.md) — Pare-feu, TLS, auto-blocage
   - [Notifications](nas/nas01/notifications.md) — Configuration email
+
+## Tâches
+
+Voir [TODO.md](TODO.md) pour la liste complète des tâches en cours et à venir.
