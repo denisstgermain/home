@@ -2,7 +2,7 @@
 
 ## En cours
 
-- [ ] **Déployer le certificat wildcard sur NAS01** — Importer le cert *.fstgermain.com dans DSM (manuel ou deploy hook avec 2FA)
+- [ ] **Automatiser le déploiement du certificat sur NAS01** — Configurer le deploy hook acme.sh avec le compte `certadmin` (sans 2FA)
 
 ## À faire
 
@@ -23,3 +23,5 @@
 - [x] **Documenter la config NAS01** — Export DSM analysé, 7 fichiers de doc créés — 2026-03-08
 - [x] **Générer le certificat wildcard *.fstgermain.com** — acme.sh + Cloudflare DNS-01 — 2026-03-08
 - [x] **Installer acme.sh sur Windows** — Avec plugins dnsapi et tâche planifiée — 2026-03-08
+- [x] **Déployer le certificat wildcard sur NAS01** — Import manuel via DSM, défini comme certificat par défaut — 2026-03-08
+- [x] **Créer le compte certadmin sur NAS01** — Compte admin sans 2FA pour le deploy hook futur — 2026-03-08
