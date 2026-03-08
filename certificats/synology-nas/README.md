@@ -1,154 +1,130 @@
-# Certificat Let's Encrypt — NAS Synology
+# Certificat Wildcard Let's Encrypt — fstgermain.com
 
-Guide pour obtenir et configurer un certificat SSL Let's Encrypt sur un NAS Synology (DSM 7+).
-
----
-
-## Prérequis
-
-- **Nom de domaine** configuré et pointant vers le NAS (A record ou DDNS Synology/autre)
-- **Accès admin** au DSM
-- **Port 80 accessible** depuis Internet (pour la méthode DSM / HTTP-01), ou accès à l'API DNS de votre registrar (pour la méthode DNS-01 via acme.sh)
+Certificat SSL wildcard `*.fstgermain.com` + `fstgermain.com` généré via acme.sh et Cloudflare DNS-01.
 
 ---
 
-## Méthode 1 : Via l'interface DSM (la plus simple)
+## Certificat actif
 
-Convient si le port 80 est ouvert et redirigé vers le NAS.
+| Paramètre | Valeur |
+|-----------|--------|
+| **Domaines** | `fstgermain.com` + `*.fstgermain.com` |
+| **Émetteur** | Let's Encrypt (E8) |
+| **Type de clé** | ECC (ECDSA P-256) |
+| **Validité** | 90 jours (renouvellement auto) |
+| **Première émission** | 2026-03-08 |
+| **Expiration** | 2026-06-06 |
+| **Validation** | DNS-01 via Cloudflare API |
 
-### Étapes
+## Fichiers du certificat
 
-1. Se connecter au DSM en tant qu'administrateur
-2. Aller dans **Panneau de configuration → Sécurité → Certificat**
-3. Cliquer sur **Ajouter**
-4. Sélectionner **Ajouter un nouveau certificat** → Suivant
-5. Sélectionner **Obtenir un certificat auprès de Let's Encrypt** → Suivant
-6. Remplir les champs :
-   - **Nom de domaine** : `votre-domaine.com` (le domaine principal)
-   - **E-mail** : votre adresse e-mail (notifications d'expiration)
-   - **Autre nom de l'objet (SAN)** : domaines supplémentaires séparés par `;` (optionnel)
-7. Cliquer sur **Terminé**
+Les fichiers sont stockés sur la machine Windows de génération :
 
-### Renouvellement
-
-DSM renouvelle automatiquement le certificat avant son expiration (tous les 90 jours). Aucune action requise.
+```
+C:\Users\Denis\.acme.sh\fstgermain.com_ecc\
+├── fstgermain.com.cer      ← Certificat serveur
+├── fstgermain.com.key      ← Clé privée
+├── ca.cer                  ← Certificat intermédiaire (CA)
+├── fullchain.cer           ← Certificat + chaîne complète (pour la plupart des services)
+└── fstgermain.com.conf     ← Configuration acme.sh (ne pas modifier)
+```
 
 ---
 
-## Méthode 2 : Via acme.sh en SSH (plus flexible)
+## Génération et renouvellement
 
-Convient si vous ne pouvez pas ouvrir le port 80, ou si vous voulez plus de contrôle. Utilise le challenge **DNS-01** : aucun port à ouvrir.
+### Prérequis (déjà en place)
 
-### 1. Activer SSH sur le NAS
+- **acme.sh** installé dans `C:\Users\Denis\.acme.sh\`
+- **Cloudflare API Token** : configuré dans le projet `D:\GithubRepo\cloudflare\`
+- **Zone ID** : `4564124ff5baebc49dbcbf896a10e763`
+- Un **Windows Scheduler Task** a été créé pour le renouvellement automatique
 
-- **Panneau de configuration → Terminal & SNMP → Terminal**
-- Cocher **Activer le service SSH**
-- Se connecter en SSH : `ssh admin@IP_DU_NAS`
-
-### 2. Installer acme.sh
+### Commande de génération / renouvellement manuel
 
 ```bash
-# Se connecter en root
-sudo -i
+export CF_Token="<token_cloudflare>"
+export CF_Zone_ID="4564124ff5baebc49dbcbf896a10e763"
 
-# Installer acme.sh
-wget -O - https://get.acme.sh | sh -s email=votre@email.com
-
-# Recharger le profil
-source ~/.bashrc
+~/.acme.sh/acme.sh --issue --dns dns_cf \
+  -d fstgermain.com \
+  -d "*.fstgermain.com" \
+  --server letsencrypt --force
 ```
 
-### 3. Configurer l'API DNS de votre registrar
+### Renouvellement automatique
 
-Chaque registrar a ses propres variables d'environnement. Exemples :
+acme.sh a installé une tâche planifiée Windows qui renouvelle automatiquement le certificat avant expiration. Vérifier :
 
-**OVH :**
 ```bash
-export OVH_END_POINT='ovh-eu'
-export OVH_AK='votre_application_key'
-export OVH_AS='votre_application_secret'
-export OVH_CK='votre_consumer_key'
+# Voir la config
+cat ~/.acme.sh/fstgermain.com_ecc/fstgermain.com.conf
+
+# Renouvellement manuel si besoin
+~/.acme.sh/acme.sh --renew -d fstgermain.com -d "*.fstgermain.com" --force
 ```
 
-**Cloudflare :**
+---
+
+## Déploiement sur NAS Synology (NAS01)
+
+### Option A : Import manuel via DSM
+
+1. Copier les 3 fichiers nécessaires depuis `C:\Users\Denis\.acme.sh\fstgermain.com_ecc\` :
+   - `fstgermain.com.key` (clé privée)
+   - `fstgermain.com.cer` (certificat)
+   - `ca.cer` (certificat intermédiaire)
+2. Dans DSM : **Panneau de configuration → Sécurité → Certificat**
+3. **Ajouter → Importer un certificat**
+4. Remplir les champs :
+   - **Clé privée** : `fstgermain.com.key`
+   - **Certificat** : `fstgermain.com.cer`
+   - **Certificat intermédiaire** : `ca.cer`
+5. Cocher **Définir comme certificat par défaut** si désiré
+6. Cliquer **OK**
+
+### Option B : Déploiement automatique via acme.sh (deploy hook)
+
+> **Note** : Le 2FA est activé sur le compte `dstgermain`. Il faut configurer `SYNO_DEVICE_NAME` et `SYNO_DEVICE_ID` pour que le deploy hook fonctionne.
+
 ```bash
-export CF_Token='votre_api_token'
-export CF_Zone_ID='votre_zone_id'
-```
-
-> Consultez la [liste complète des DNS API supportés par acme.sh](https://github.com/acmesh-official/acme.sh/wiki/dnsapi).
-
-### 4. Émettre le certificat
-
-```bash
-# Exemple avec OVH
-~/.acme.sh/acme.sh --issue --dns dns_ovh -d votre-domaine.com -d *.votre-domaine.com
-
-# Exemple avec Cloudflare
-~/.acme.sh/acme.sh --issue --dns dns_cf -d votre-domaine.com -d *.votre-domaine.com
-```
-
-### 5. Déployer le certificat sur DSM
-
-acme.sh inclut un script de déploiement pour Synology DSM :
-
-```bash
-# Configurer les identifiants DSM (une seule fois)
-export SYNO_USERNAME='admin'
-export SYNO_PASSWORD='votre_mot_de_passe'
+# Configuration initiale (une seule fois)
+export SYNO_USERNAME='dstgermain'
+export SYNO_PASSWORD='<mot_de_passe>'
 export SYNO_SCHEME='https'
-export SYNO_HOSTNAME='localhost'
+export SYNO_HOSTNAME='10.0.0.105'
 export SYNO_PORT='5001'
+export SYNO_DEVICE_NAME='CertBot'
+export SYNO_DEVICE_ID='<device_id>'   # Obtenu lors du premier login 2FA
 
 # Déployer
-~/.acme.sh/acme.sh --deploy -d votre-domaine.com --deploy-hook synology_dsm
+~/.acme.sh/acme.sh --deploy -d fstgermain.com --deploy-hook synology_dsm
 ```
 
-> **Note :** Si l'authentification à deux facteurs (2FA) est activée sur le compte admin, utilisez `SYNO_DEVICE_NAME` et `SYNO_DEVICE_ID` pour contourner le 2FA. Consultez la [doc du deploy hook](https://github.com/acmesh-official/acme.sh/wiki/deployhooks#20-deploy-the-cert-into-synology-dsm).
+Pour obtenir le `SYNO_DEVICE_ID`, voir la [doc du deploy hook Synology](https://github.com/acmesh-official/acme.sh/wiki/deployhooks#20-deploy-the-cert-into-synology-dsm).
 
-### 6. Renouvellement automatique
+### Après le déploiement
 
-acme.sh installe automatiquement une entrée cron pour le renouvellement. Vérifier :
-
-```bash
-crontab -l
-```
-
-Sur Synology, le cron peut être réinitialisé après une mise à jour DSM. Pour plus de fiabilité, créer une **tâche planifiée** dans DSM :
-
-1. **Panneau de configuration → Planificateur de tâches → Créer → Tâche planifiée → Script défini par l'utilisateur**
-2. **Planification** : une fois par jour (ou par semaine)
-3. **Script** :
-   ```bash
-   /root/.acme.sh/acme.sh --cron --home /root/.acme.sh
-   ```
-4. Exécuter en tant que **root**
+1. **Panneau de configuration → Sécurité → Certificat → Paramètres**
+2. Assigner le certificat `fstgermain.com` à chaque service :
+   - DSM Desktop Service
+   - Web Station
+   - Synology Drive
+   - Tout autre service HTTPS
+3. Vérifier : `https://drive.fstgermain.com:5001` → cadenas valide
 
 ---
 
-## Configuration post-certificat
+## Déploiement sur d'autres services
 
-### Assigner le certificat aux services
+Le certificat wildcard couvre **tous les sous-domaines** de fstgermain.com. Il peut être installé sur n'importe quel service :
 
-1. **Panneau de configuration → Sécurité → Certificat**
-2. Cliquer sur **Paramètres**
-3. Pour chaque service (DSM, Web Station, VPN Server, etc.), sélectionner le certificat Let's Encrypt dans le menu déroulant
-4. Cliquer sur **OK**
-
-### Vérifier le HTTPS
-
-- Accéder au DSM via `https://votre-domaine.com:5001`
-- Vérifier que le cadenas apparaît dans le navigateur
-- Vérifier la date d'expiration du certificat (clic sur le cadenas → détails)
-
-### Notes sur le renouvellement
-
-| Méthode | Renouvellement | Particularité |
-|---------|---------------|---------------|
-| DSM intégré | Automatique | Nécessite le port 80 ouvert en permanence |
-| acme.sh | Via cron / tâche planifiée | Fonctionne sans port ouvert (DNS-01) |
-
-> Les certificats Let's Encrypt expirent après **90 jours**. Le renouvellement est tenté automatiquement à partir de 30 jours avant l'expiration.
+| Service | Fichiers nécessaires |
+|---------|---------------------|
+| Nginx / Apache | `fullchain.cer` + `fstgermain.com.key` |
+| NAS Synology | `fstgermain.com.cer` + `fstgermain.com.key` + `ca.cer` |
+| Home Assistant | `fullchain.cer` + `fstgermain.com.key` |
+| Autre | Varie — généralement fullchain + key |
 
 ---
 
@@ -156,7 +132,8 @@ Sur Synology, le cron peut être réinitialisé après une mise à jour DSM. Pou
 
 | Problème | Solution |
 |----------|----------|
-| Échec de validation HTTP-01 | Vérifier que le port 80 est bien redirigé vers le NAS et qu'aucun pare-feu ne bloque |
-| Échec de validation DNS-01 | Vérifier les clés API du registrar et que le TXT record se propage (`dig TXT _acme-challenge.votre-domaine.com`) |
-| Certificat non renouvelé | Vérifier le cron (`crontab -l`) ou la tâche planifiée DSM |
-| Erreur 2FA avec acme.sh | Configurer `SYNO_DEVICE_NAME` et `SYNO_DEVICE_ID` |
+| `Cannot find DNS API hook for: dns_cf` | Les plugins dnsapi manquent. Cloner le repo acme.sh et copier `dnsapi/` dans `~/.acme.sh/` |
+| Échec validation DNS-01 | Vérifier le token Cloudflare et le Zone ID. Tester : `curl -s -H "Authorization: Bearer $CF_Token" "https://api.cloudflare.com/client/v4/zones/$CF_Zone_ID"` |
+| Certificat expiré | `~/.acme.sh/acme.sh --renew -d fstgermain.com -d "*.fstgermain.com" --force` |
+| Erreur 2FA sur deploy hook Synology | Configurer `SYNO_DEVICE_NAME` + `SYNO_DEVICE_ID` |
+| Renouvellement Windows échoue | Vérifier la tâche planifiée dans le Planificateur de tâches Windows |
